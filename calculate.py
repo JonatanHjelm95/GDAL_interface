@@ -1,6 +1,7 @@
 from PIL import Image
 from osgeo import gdal
 import os
+from os.path import dirname, abspath
 import sys
 import subprocess
 import argparse
@@ -96,12 +97,13 @@ def calc_timing(length, current):
 def show_progress(length, index, res):
     eta = calc_timing(length, index)
     progress = calcProgress(length, index)
-    progressbar = render_progress(progress)+ ' ' +str(progress) + '% ' +str(eta)+'  | '+res+ ' |'
+    progressbar = render_progress(progress)+ ' ' +str(progress) + '% ' +str(eta)+'  | '+res+ ' | \t' # <- Padding
     print(progressbar, end="\r")
 
 def finish_progress():
-    progressbar = render_progress(100)+ ' 100% | Finished translation. Files calculated: '+ str(len(success))+', failed: '+str(len(failed)) 
+    progressbar = render_progress(100)+ ' 100% '
     print(progressbar)
+    print('\n Finished calculation. Files calculated: '+ str(len(success))+', failed: '+str(len(failed)))
 
 def get_python_path():
     paths = sys.path
@@ -109,9 +111,12 @@ def get_python_path():
         if 'Python3' in p.split('\\')[len(p.split('\\'))-1]:
             return p.replace('\\','/')+'/python.exe'
 
+def get_parent_path():
+    return dirname(dirname(abspath(__file__))).replace('\\', '/') + '/GDAL_Interface'
+
 # Calculation is executed here
-def calculate(python_path, infile, outpath, option):
-    command = python_path +' gdalwin64-2.1dev/gdal_calc.py -A converted/'+infile+'.tiff --outfile='+outpath+'/'+infile+'.tiff '+ calc_options[option]
+def calculate(python_path, infile, outpath, fm, option):
+    command = python_path + ' '+get_parent_path()+'/gdalwin64-2.1dev/gdal_calc.py -A converted/'+infile+'.tiff --outfile='+outpath+'/'+infile+'.'+fm+ ' '+ calc_options[option]
     sys.stdout = open(os.devnull, 'w')
     os.system(command)
     success.append(infile)
@@ -137,7 +142,7 @@ def purgeOutputFolder(output):
         pass
 
 # Exection
-def do_calculation(inputfolder, calculation, args):
+def do_calculation(inputfolder, calculation, fm, args):
     python_path = get_python_path()
     purgeConversionFolder()
     fnames = get_filenames(inputfolder)
@@ -150,7 +155,7 @@ def do_calculation(inputfolder, calculation, args):
         # Creating output folder
         os.mkdir(outpath) 
     except:
-        answer = input(outpath + ' already exists. Do you wish to overwrite it? y/n')
+        answer = input(outpath + ' already exists. Do you wish to overwrite it? y/n \n')
         if answer == 'y':
             purgeOutputFolder(outpath)
             # Recreating output folder
@@ -166,7 +171,7 @@ def do_calculation(inputfolder, calculation, args):
                 start_time = time.time()
             outfile = fnames[i]
             convertToTif(inputfolder, fnames[i])
-            res = calculate(python_path, fnames[i].split('.')[0], outpath, str(calculation))
+            res = calculate(python_path, fnames[i].split('.')[0], outpath, fm, str(calculation))
             show_progress(length=len(fnames), index=i, res=res)
             if i % 10 == 0:
                 timings.append(time.time() - start_time)
@@ -183,9 +188,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # Mandatory
     parser.add_argument('-i', '--input', help='input folder path', required=True)
+    parser.add_argument('-fm', '--format', help='output file format', required=True)
     parser.add_argument('-c', '--calculation', help='calculation type:  1=A*1.5 | 2=A*2 | 3=A*(A>0) | 4=A+10000 (Thermal normalization)', required=True)
     # Optional
     parser.add_argument('-o', '--output', help='output folder path. Default=[inputfolder]_calculated', required=False)
     # Execute
     args = parser.parse_args()
-    do_calculation(inputfolder=args.input, calculation=args.calculation, args=args)
+    do_calculation(inputfolder=args.input, calculation=args.calculation, fm=args.format, args=args)

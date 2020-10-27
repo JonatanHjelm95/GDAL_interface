@@ -179,12 +179,13 @@ def render_progress(progress):
 def show_progress(length, index, res):
     eta = calc_timing(length, index)
     progress = calcProgress(length, index)
-    progressbar = render_progress(progress)+ ' ' +str(progress) + '% ' +str(eta)+'  | '+res+ ' |'
+    progressbar = render_progress(progress)+ ' ' +str(progress) + '% ' +str(eta)+'  | '+res+ ' | \t' # <- Padding
     print(progressbar, end="\r")
 
 def finish_progress():
-    progressbar = render_progress(100)+ ' 100% | Finished translation. Files translated: '+ str(len(success))+', failed: '+str(len(failed)) 
+    progressbar = render_progress(100)+ ' 100% '
     print(progressbar)
+    print('\n Finished translation. Files translated: '+ str(len(success))+', failed: '+str(len(failed)))
 
 def purgeOutputFolder(output):
     try:
@@ -207,7 +208,7 @@ def do_translate(inputfolder, program, fm, args):
         # Creating output folder
         os.mkdir(output) 
     except:
-        answer = input(output + ' already exists. Do you wish to overwrite it? y/n')
+        answer = input(output + ' already exists. Do you wish to overwrite it? y/n \n')
         if answer == 'y':
             purgeOutputFolder(output)
             # Recreating output folder
