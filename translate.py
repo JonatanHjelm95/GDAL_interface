@@ -1,5 +1,7 @@
 from PIL import Image
 from osgeo import gdal
+import osgeo.osr as osr
+import glob
 import os
 import subprocess
 import argparse
@@ -23,11 +25,26 @@ def convertToTif(filename):
 
 
 def set_format(outfile):
-    fm = outfile.split('.')[1].upper()
+    fm = str(outfile.upper())
     if fm == 'JPG':
-        return 'jpeg'
+        return 'JPEG'
+    if fm == 'TIFF' or fm == 'TIF' or fm == 'GTIFF':
+        return 'GTIFF'
     else:
         return fm
+
+
+def generate_world_file(path, outfile, xform):
+    edit1=xform[0]+xform[1]/2
+    edit2=xform[3]+xform[5]/2
+    tfw = open(path+'/'+outfile + '.tfw', 'wt')
+    tfw.write("%0.8f\n" % xform[1])
+    tfw.write("%0.8f\n" % xform[2])
+    tfw.write("%0.8f\n" % xform[4])
+    tfw.write("%0.8f\n" % xform[5])
+    tfw.write("%0.8f\n" % edit1)
+    tfw.write("%0.8f\n" % edit2)
+    tfw.close()
 
 # Getting all the filenames from the input folder
 def get_filenames(folder):
@@ -60,10 +77,13 @@ def set_outputfolder(inputfolder, args):
 
 # Accepts jpg, png and tif
 # bands = [1,2,3]/[1,1,2,3]
-def translate_band(infile, path, outfile, bands):
+def translate_band(infile, path, outfile, bands, fm, tfw):
     try:
         ds = gdal.Open(infile)
-        ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(outfile), bandList = bands)
+        ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(fm), bandList = bands)
+        if tfw:
+            xform = ds.GetGeoTransform()
+            generate_world_file(path, outfile, xform)
         ds = None
         success.append(infile)        
         return 'Translated '+str(infile)
@@ -76,10 +96,13 @@ def translate_band(infile, path, outfile, bands):
 
 # Accepts jpg, png and tif
 # expand = rgb/rgba/gray
-def translate_nodata(infile, path, outfile):
+def translate_nodata(infile, path, outfile, fm, tfw):
     try:
         ds = gdal.Open(infile)
-        ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(outfile), noData=1)
+        ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(fm), noData=1)
+        if tfw:
+            xform = ds.GetGeoTransform()
+            generate_world_file(path, outfile, xform)
         ds = None
         success.append(infile)        
         return 'Translated '+str(infile)
@@ -93,10 +116,13 @@ def translate_nodata(infile, path, outfile):
 # Accepts jpg, png and tif
 # Resize pixel
 # expand = rgb/rgba/gray
-def translate_size_px(infile, path, outfile, w, h):
+def translate_size_px(infile, path, outfile, w, h, fm, tfw):
     try:
         ds = gdal.Open(infile)
-        ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(outfile), width = w, height=h)
+        ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(fm), width = w, height=h)
+        if tfw:
+            xform = ds.GetGeoTransform()
+            generate_world_file(path, outfile, xform)
         ds = None
         success.append(infile)        
         return 'Translated '+str(infile)
@@ -110,10 +136,13 @@ def translate_size_px(infile, path, outfile, w, h):
 # Accepts jpg, png and tif
 # Resize pct
 # expand = rgb/rgba/gray
-def translate_size_pct(infile, path, outfile, w, h):
+def translate_size_pct(infile, path, outfile, w, h, fm, tfw):
     try:
         ds = gdal.Open(infile)
-        ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(outfile), widthPct = w, heightPct=h)
+        ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(fm), widthPct = w, heightPct=h)
+        if tfw:
+            xform = ds.GetGeoTransform()
+            generate_world_file(path, outfile, xform)
         ds = None
         success.append(infile)        
         return 'Translated '+str(infile)
@@ -127,17 +156,23 @@ def translate_size_pct(infile, path, outfile, w, h):
 # Accepts .gif files
 # expand = rgb/rgba/gray
 # NOT WORKING ATM
-def translate_rgb(infile, path, outfile, expand):
+def translate_rgb(infile, path, outfile, expand, fm, tfw):
     ds = gdal.Open(infile)
-    ds = gdal.Translate(path+'/'+outfile, ds, rgbExpand = expand)
+    ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(fm), rgbExpand = expand)
+    if tfw:
+        xform = ds.GetGeoTransform()
+        generate_world_file(path, outfile, xform)
     ds = None
 
 # Accepts .tif files
 # src = [0,0,1,1]
 # NOT WORKING ATM
-def translate_src(infile, path, outfile, src):
+def translate_src(infile, path, outfile, src, fm, tfw):
     ds = gdal.Open(infile)
-    ds = gdal.Translate(path+'/'+outfile, ds, srcWin = src)
+    ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(fm), srcWin = src)
+    if tfw:
+        xform = ds.GetGeoTransform()
+        generate_world_file(path, outfile, xform)
     ds = None
 
 def set_bands(program):
@@ -202,6 +237,8 @@ def do_translate(inputfolder, program, fm, args):
     # Getting optional args
     expand = set_rgb_option(args)
     output = set_outputfolder(inputfolder, args)
+    # Creates tfw file if True
+    tfw = True
     # Check if outputfolder already exist
     print('Translating files to', output, 'program:', program, 'format:', fm, 'rgbExpand:',expand)
     try:
@@ -225,7 +262,7 @@ def do_translate(inputfolder, program, fm, args):
                 if i % 10 == 0:
                     start_time = time.time()
                 outfile = fnames[i].split('.')[0]+'.'+fm
-                res = translate_band(inputfolder+'/'+fnames[i], output, outfile, bands)
+                res = translate_band(inputfolder+'/'+fnames[i], output, outfile, bands, fm, tfw)
                 show_progress(length=len(fnames), index=i, res=res)
                 if i % 10 == 0:
                     timings.append(time.time() - start_time)
@@ -235,7 +272,7 @@ def do_translate(inputfolder, program, fm, args):
                 if i % 10 == 0:
                     start_time = time.time()
                 outfile = fnames[i].split('.')[0]+'.'+fm
-                res = translate_nodata(inputfolder+'/'+fnames[i], output, outfile)
+                res = translate_nodata(inputfolder+'/'+fnames[i], output, outfile, fm, tfw)
                 show_progress(length=len(fnames), index=i, res=res)
                 if i % 10 == 0:
                     timings.append(time.time() - start_time)
@@ -248,7 +285,7 @@ def do_translate(inputfolder, program, fm, args):
                 if i % 10 == 0:
                     start_time = time.time()
                 outfile = fnames[i].split('.')[0]+'.'+fm
-                res = translate_size_px(inputfolder+'/'+fnames[i], output, outfile, width, height)
+                res = translate_size_px(inputfolder+'/'+fnames[i], output, outfile, width, height, fm, tfw)
                 show_progress(length=len(fnames), index=i, res=res)
                 if i % 10 == 0:
                     timings.append(time.time() - start_time)
@@ -261,7 +298,7 @@ def do_translate(inputfolder, program, fm, args):
                 if i % 10 == 0:
                     start_time = time.time()
                 outfile = fnames[i].split('.')[0]+'.'+fm
-                res = translate_size_pct(inputfolder+'/'+fnames[i], output, outfile, width, height)
+                res = translate_size_pct(inputfolder+'/'+fnames[i], output, outfile, width, height, fm, tfw)
                 show_progress(length=len(fnames), index=i, res=res)
                 if i % 10 == 0:
                     timings.append(time.time() - start_time)
@@ -281,10 +318,11 @@ if __name__ == "__main__":
     # Mandatory
     parser.add_argument('-i', '--input', help='input folder path', required=True)
     parser.add_argument('-fm', '--format', help='output file format', required=True)
-    parser.add_argument('-p', '--program', help='translation type:  n=noData e.g. n | b=bands e.g. b=1,2,3,4 or b=1,2,3 | rpx=resize (pixels), width height e.g. rpx=50,50 | rpc=resize (percent), width height e.g. rpc=50,50 |', required=True)
+    parser.add_argument('-t', '--translation', help='translation type:  n=noData e.g. n | b=bands e.g. b=1,2,3,4 or b=1,2,3 | rpx=resize (pixels), width height e.g. rpx=50,50 | rpc=resize (percent), width height e.g. rpc=50,50 |', required=True)
     # Optionals
     parser.add_argument('-o', '--output', help='output folder path. Default=[inputfolder]_translated', required=False)
     parser.add_argument('-e', '--expand', help='RGB Expand type(rgb, rgba or gray). Default=rgb', required=False)
+
     # Execute
     args = parser.parse_args()
-    do_translate(inputfolder=args.input, program=args.program, fm=args.format, args=args)
+    do_translate(inputfolder=args.input, program=args.translation, fm=args.format, args=args)
