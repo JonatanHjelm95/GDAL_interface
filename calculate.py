@@ -29,12 +29,14 @@ def convertToTif(inputfolder, filename):
     im = Image.open(inputfolder+"/"+filename)
     im.save("converted/"+newfname+".tiff", 'TIFF')
 
-def set_format(outfile):
-    fm = outfile.split('.')[1].upper()
-    if fm == 'JPG':
-        return 'jpeg'
+def set_format(fm):
+    fm = fm.replace('.','').upper()
+    if fm == 'JPG' or fm == 'JPEG':
+        return 'jpg'
+    if fm == 'TIF' or fm == 'TIFF' or fm == 'GTIFF':
+        return 'tif'
     else:
-        return fm
+        return 'png'
 
 # Getting all the filenames from the input folder
 def get_filenames(folder):
@@ -50,22 +52,6 @@ def set_outputfolder(inputfolder, args):
         return str(args.output)
     else:
         return inputfolder+'_calculated' 
-
-# Accepts jpg, png and tif
-# bands = [1,2,3]/[1,1,2,3]
-def translate_band(infile, path, outfile, bands):
-    try:
-        ds = gdal.Open(infile)
-        ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(outfile), bandList = bands)
-        ds = None
-        success.append(infile)        
-        return 'Translated '+str(infile)
-    except Exception as e:
-        fail = {}
-        fail[infile] = str(e)
-        failed.append(fail)
-        return 'Error: '+str(e)
-        pass
 
 def calcProgress(length, current):
     progress = current / length * 100
@@ -117,7 +103,7 @@ def get_parent_path():
 
 # Calculation is executed here
 def calculate(python_path, infile, outpath, fm, option):
-    command = python_path + ' '+get_parent_path()+'/gdalwin64-2.1dev/gdal_calc.py -A converted/'+infile+'.tiff --outfile='+outpath+'/'+infile+'.'+fm+ ' '+ calc_options[option]
+    command = python_path + ' '+get_parent_path()+'/gdalwin64-2.1dev/gdal_calc.py -A converted/'+infile+'.tiff --outfile='+outpath+'/'+infile+'.'+set_format(fm)+ ' '+ calc_options[option]
     sys.stdout = open(os.devnull, 'w')
     os.system(command)
     success.append(infile)
