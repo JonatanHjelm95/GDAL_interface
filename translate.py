@@ -1,4 +1,4 @@
-from PIL import Image
+from PIL import Image, TiffImagePlugin, TiffTags
 from osgeo import gdal
 import osgeo.osr as osr
 import glob
@@ -17,15 +17,41 @@ timings = []
 success = []
 failed = []
 
-def convertToTif(filename):
+# Compresses and replaces all files
+def convertToTif_replace(path, filename):
     newfname = filename.split('.')[0]
-    im = Image.open("examples/"+filename)
-    im.save("converted/"+newfname+".tiff", 'TIFF')
-    return newfname+".tiff"
+    im = Image.open(path+"/"+filename)
+    TiffImagePlugin.WRITE_LIBTIFF = True
+    TiffTags.LIBTIFF_CORE.add(317)
+    im.save(path+"/"+newfname+"_cnv.tif", compression = "tiff_lzw")
+    # Removes uncompressed image
+    os.remove(path.replace('\\','/')+'/'+filename)
+    # Renames compressed image to original
+    os.rename(path.replace('\\','/')+'/'+newfname+'_cnv.tif', path+'/'+filename)
+    TiffImagePlugin.WRITE_LIBTIFF = False
+    return newfname+".tif"
 
+# Compresses files and replaces if size is smaller
+def convertToTif_replace_largestFile(path, filename):
+    newfname = filename.split('.')[0]
+    im = Image.open(path+"/"+filename)
+    TiffImagePlugin.WRITE_LIBTIFF = True
+    TiffTags.LIBTIFF_CORE.add(317)
+    im.save(path+"/"+newfname+"_cnv.tif", compression = "tiff_lzw")
+    original = os.path.getsize(path.replace('\\','/')+"/"+filename)
+    converted = os.path.getsize(path.replace('\\','/')+'/'+newfname+"_cnv.tif")
+    if original > converted:
+        # Removes uncompressed image
+        os.remove(path.replace('\\','/')+'/'+filename)
+        # Renames compressed image to original
+        os.rename(path.replace('\\','/')+'/'+newfname+'_cnv.tif', path+'/'+filename)
+    else:
+        os.remove(path.replace('\\','/')+'/'+newfname+'_cnv.tif')
+    TiffImagePlugin.WRITE_LIBTIFF = False
+    return newfname+".tif"
 
 def set_format(outfile):
-    fm = str(outfile.upper())
+    fm = str(outfile.replace('.','').upper())
     if fm == 'JPG':
         return 'JPEG'
     if fm == 'TIFF' or fm == 'TIF' or fm == 'GTIFF':
@@ -37,7 +63,7 @@ def set_format(outfile):
 def generate_world_file(path, outfile, xform):
     edit1=xform[0]+xform[1]/2
     edit2=xform[3]+xform[5]/2
-    tfw = open(path+'/'+outfile + '.tfw', 'wt')
+    tfw = open(path+'/'+outfile.split('.')[0] + '.tfw', 'wt')
     tfw.write("%0.8f\n" % xform[1])
     tfw.write("%0.8f\n" % xform[2])
     tfw.write("%0.8f\n" % xform[4])
@@ -50,7 +76,7 @@ def generate_world_file(path, outfile, xform):
 def get_filenames(folder):
     files = []
     for f in os.listdir(folder):
-        if '.tif' in f or '.jpg' in f or '.png' in f or '.jpeg' in f or '.tiff' in f:
+        if '.tif' in f.lower() or '.jpg' in f.lower() or '.png' in f.lower() or '.jpeg' in f.lower() or '.tiff' in f.lower():
             files.append(f)
     return files
 
@@ -77,7 +103,7 @@ def set_outputfolder(inputfolder, args):
 
 # Accepts jpg, png and tif
 # bands = [1,2,3]/[1,1,2,3]
-def translate_band(infile, path, outfile, bands, fm, tfw):
+def translate_band(infile, path, outfile, bands, fm, tfw, compression):
     try:
         ds = gdal.Open(infile)
         ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(fm), bandList = bands)
@@ -85,6 +111,10 @@ def translate_band(infile, path, outfile, bands, fm, tfw):
             xform = ds.GetGeoTransform()
             generate_world_file(path, outfile, xform)
         ds = None
+        if set_format(fm) == 'GTIFF' and compression == '1':
+            convertToTif_replace_largestFile(path,outfile)
+        if set_format(fm) == 'GTIFF' and compression == '2':
+            convertToTif_replace(path,outfile)
         success.append(infile)        
         return 'Translated '+str(infile)
     except Exception as e:
@@ -140,6 +170,7 @@ def translate_size_pct(infile, path, outfile, w, h, fm, tfw):
     try:
         ds = gdal.Open(infile)
         ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(fm), widthPct = w, heightPct=h)
+        # Creates TFW File
         if tfw:
             xform = ds.GetGeoTransform()
             generate_world_file(path, outfile, xform)
@@ -231,6 +262,13 @@ def purgeOutputFolder(output):
     except:
         pass
 
+def setCompressionType(compression):
+    if compression == None or not str(compression) == '1' and not str(compression) == '2' and not str(compression) == '3':
+        return '1'
+    else:
+        return str(compression)
+    
+
 # Exection
 def do_translate(inputfolder, program, fm, args):
     fnames = get_filenames(inputfolder)
@@ -258,11 +296,14 @@ def do_translate(inputfolder, program, fm, args):
     try:
         if 'b=' in program:
             bands = set_bands(program)
+            compression = input('Which compression type do you wish to use? \n1 = Keeps compressed file if size is smaller than original (Recommended/Default)\n2 = Compresses all files\n3 = No compression (keeps raw images)\n')
+            compression = setCompressionType(compression)
+            print("You've selected option "+str(compression))
             for i in range(len(fnames)):
                 if i % 10 == 0:
                     start_time = time.time()
                 outfile = fnames[i].split('.')[0]+'.'+fm
-                res = translate_band(inputfolder+'/'+fnames[i], output, outfile, bands, fm, tfw)
+                res = translate_band(inputfolder+'/'+fnames[i], output, outfile, bands, fm, tfw, compression)
                 show_progress(length=len(fnames), index=i, res=res)
                 if i % 10 == 0:
                     timings.append(time.time() - start_time)
@@ -312,8 +353,7 @@ def do_translate(inputfolder, program, fm, args):
     ###### Finished Translation ######
     ##################################
 
-
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     # Mandatory
     parser.add_argument('-i', '--input', help='input folder path', required=True)
@@ -326,3 +366,8 @@ if __name__ == "__main__":
     # Execute
     args = parser.parse_args()
     do_translate(inputfolder=args.input, program=args.translation, fm=args.format, args=args)
+
+
+
+if __name__ == "__main__":
+    main()

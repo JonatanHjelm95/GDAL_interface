@@ -112,7 +112,8 @@ def get_python_path():
             return p.replace('\\','/')+'/python.exe'
 
 def get_parent_path():
-    return dirname(dirname(abspath(__file__))).replace('\\', '/') + '/GDAL_Interface'
+    return os.path.dirname(__file__).replace('\\','/')
+
 
 # Calculation is executed here
 def calculate(python_path, infile, outpath, fm, option):
@@ -184,7 +185,7 @@ def do_calculation(inputfolder, calculation, fm, args):
     ######## Finished calculation #########
     #######################################
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     # Mandatory
     parser.add_argument('-i', '--input', help='input folder path', required=True)
@@ -195,3 +196,7 @@ if __name__ == "__main__":
     # Execute
     args = parser.parse_args()
     do_calculation(inputfolder=args.input, calculation=args.calculation, fm=args.format, args=args)
+
+
+if __name__ == "__main__":
+    main()
