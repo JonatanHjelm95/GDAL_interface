@@ -17,6 +17,19 @@ timings = []
 success = []
 failed = []
 
+
+# Converts GTIFF to TIF
+def no_compression(path, filename):
+    newfname = filename.split('.')[0]
+    im = Image.open(path+"/"+filename)
+    TiffImagePlugin.WRITE_LIBTIFF = True
+    TiffTags.LIBTIFF_CORE.add(317)
+    im.save(path+"/"+newfname+"_cnv.tif")
+    os.remove(path.replace('\\','/')+'/'+filename)
+    os.rename(path.replace('\\','/')+'/'+newfname+'_cnv.tif', path+'/'+newfname+'.tif')
+    TiffImagePlugin.WRITE_LIBTIFF = False
+    return newfname+".tif"
+
 # Compresses and replaces all files
 def convertToTif_replace(path, filename):
     newfname = filename.split('.')[0]
@@ -54,10 +67,13 @@ def set_format(outfile):
     fm = str(outfile.replace('.','').upper())
     if fm == 'JPG':
         return 'JPEG'
+    if fm == 'PNG':
+        return 'PNG'
     if fm == 'TIFF' or fm == 'TIF' or fm == 'GTIFF':
         return 'GTIFF'
     else:
-        return fm
+        return 'GTIFF'
+
 
 
 def generate_world_file(path, outfile, xform):
@@ -115,6 +131,8 @@ def translate_band(infile, path, outfile, bands, fm, tfw, compression):
             convertToTif_replace_largestFile(path,outfile)
         if set_format(fm) == 'GTIFF' and compression == '2':
             convertToTif_replace(path,outfile)
+        if set_format(fm) == 'GTIFF' and compression == '3':
+            no_compression(path,outfile)
         success.append(infile)        
         return 'Translated '+str(infile)
     except Exception as e:
@@ -365,7 +383,7 @@ def main():
 
     # Execute
     args = parser.parse_args()
-    do_translate(inputfolder=args.input, program=args.translation, fm=args.format, args=args)
+    do_translate(inputfolder=args.input, program=args.translation, fm=str(args.format).replace('.',''), args=args)
 
 
 
