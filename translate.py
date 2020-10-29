@@ -16,6 +16,7 @@ import time
 timings = []
 success = []
 failed = []
+compression_algorithm = 'tiff_jpeg'
 
 
 # Converts GTIFF to TIF
@@ -36,7 +37,7 @@ def convertToTif_replace(path, filename):
     im = Image.open(path+"/"+filename)
     TiffImagePlugin.WRITE_LIBTIFF = True
     TiffTags.LIBTIFF_CORE.add(317)
-    im.save(path+"/"+newfname+"_cnv.tif", compression = "tiff_lzw")
+    im.save(path+"/"+newfname+"_cnv.tif", compression = "tiff_jpeg")
     # Removes uncompressed image
     os.remove(path.replace('\\','/')+'/'+filename)
     # Renames compressed image to original
@@ -50,7 +51,7 @@ def convertToTif_replace_largestFile(path, filename):
     im = Image.open(path+"/"+filename)
     TiffImagePlugin.WRITE_LIBTIFF = True
     TiffTags.LIBTIFF_CORE.add(317)
-    im.save(path+"/"+newfname+"_cnv.tif", compression = "tiff_lzw")
+    im.save(path+"/"+newfname+"_cnv.tif", compression = "tiff_jpeg")
     original = os.path.getsize(path.replace('\\','/')+"/"+filename)
     converted = os.path.getsize(path.replace('\\','/')+'/'+newfname+"_cnv.tif")
     if original > converted:
@@ -286,6 +287,14 @@ def setCompressionType(compression):
     else:
         return str(compression)
     
+def setCompressionAlgorithm(comp):
+    if comp == None or not str(comp) == '1' and not str(comp) == '2':
+        return 'tiff_jpeg'
+    if str(comp) == '1':
+        return 'tiff_jpeg'
+    else:
+        return 'tiff_lzw'
+
 
 # Exection
 def do_translate(inputfolder, program, fm, args):
@@ -314,9 +323,15 @@ def do_translate(inputfolder, program, fm, args):
     try:
         if 'b=' in program:
             bands = set_bands(program)
+            # Compression option to save storage
             compression = input('Which compression type do you wish to use? \n1 = Keeps compressed file if size is smaller than original (Recommended/Default)\n2 = Compresses all files\n3 = No compression (keeps raw images)\n')
             compression = setCompressionType(compression)
             print("You've selected option "+str(compression))
+            # Compression algorithm option
+            if str(compression) == '1' or str(compression) == '2':
+                comp = input('which compression algorithm would you like to use?\n1 = JPEG (Default)\n2 = LZW\n')
+                compression_algorithm = setCompressionAlgorithm(comp)
+                print('Compression images with the following algorithm: '+ compression_algorithm.split('_')[1].upper())
             for i in range(len(fnames)):
                 if i % 10 == 0:
                     start_time = time.time()
