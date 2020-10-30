@@ -145,7 +145,7 @@ def translate_band(infile, path, outfile, bands, fm, tfw, compression):
 
 # Accepts jpg, png and tif
 # expand = rgb/rgba/gray
-def translate_nodata(infile, path, outfile, fm, tfw):
+def translate_nodata(infile, path, outfile, fm, tfw, compression):
     try:
         ds = gdal.Open(infile)
         ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(fm), noData=1)
@@ -153,6 +153,12 @@ def translate_nodata(infile, path, outfile, fm, tfw):
             xform = ds.GetGeoTransform()
             generate_world_file(path, outfile, xform)
         ds = None
+        if set_format(fm) == 'GTIFF' and compression == '1':
+            convertToTif_replace_largestFile(path,outfile)
+        if set_format(fm) == 'GTIFF' and compression == '2':
+            convertToTif_replace(path,outfile)
+        if set_format(fm) == 'GTIFF' and compression == '3':
+            no_compression(path,outfile)
         success.append(infile)        
         return 'Translated '+str(infile)
     except Exception as e:
@@ -165,7 +171,7 @@ def translate_nodata(infile, path, outfile, fm, tfw):
 # Accepts jpg, png and tif
 # Resize pixel
 # expand = rgb/rgba/gray
-def translate_size_px(infile, path, outfile, w, h, fm, tfw):
+def translate_size_px(infile, path, outfile, w, h, fm, tfw, compression):
     try:
         ds = gdal.Open(infile)
         ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(fm), width = w, height=h)
@@ -173,6 +179,12 @@ def translate_size_px(infile, path, outfile, w, h, fm, tfw):
             xform = ds.GetGeoTransform()
             generate_world_file(path, outfile, xform)
         ds = None
+        if set_format(fm) == 'GTIFF' and compression == '1':
+            convertToTif_replace_largestFile(path,outfile)
+        if set_format(fm) == 'GTIFF' and compression == '2':
+            convertToTif_replace(path,outfile)
+        if set_format(fm) == 'GTIFF' and compression == '3':
+            no_compression(path,outfile)
         success.append(infile)        
         return 'Translated '+str(infile)
     except Exception as e:
@@ -185,7 +197,7 @@ def translate_size_px(infile, path, outfile, w, h, fm, tfw):
 # Accepts jpg, png and tif
 # Resize pct
 # expand = rgb/rgba/gray
-def translate_size_pct(infile, path, outfile, w, h, fm, tfw):
+def translate_size_pct(infile, path, outfile, w, h, fm, tfw, compression):
     try:
         ds = gdal.Open(infile)
         ds = gdal.Translate(path+'/'+outfile, ds, format=set_format(fm), widthPct = w, heightPct=h)
@@ -194,6 +206,12 @@ def translate_size_pct(infile, path, outfile, w, h, fm, tfw):
             xform = ds.GetGeoTransform()
             generate_world_file(path, outfile, xform)
         ds = None
+        if set_format(fm) == 'GTIFF' and compression == '1':
+            convertToTif_replace_largestFile(path,outfile)
+        if set_format(fm) == 'GTIFF' and compression == '2':
+            convertToTif_replace(path,outfile)
+        if set_format(fm) == 'GTIFF' and compression == '3':
+            no_compression(path,outfile)
         success.append(infile)        
         return 'Translated '+str(infile)
     except Exception as e:
@@ -342,11 +360,19 @@ def do_translate(inputfolder, program, fm, args):
                     timings.append(time.time() - start_time)
             finish_progress()
         elif 'n' in program:
+            compression = input('Which compression type do you wish to use? \n1 = Keeps compressed file if size is smaller than original (Recommended/Default)\n2 = Compresses all files\n3 = No compression (keeps raw images)\n')
+            compression = setCompressionType(compression)
+            print("You've selected option "+str(compression))
+            # Compression algorithm option
+            if str(compression) == '1' or str(compression) == '2':
+                comp = input('which compression algorithm would you like to use?\n1 = JPEG (Default)\n2 = LZW\n')
+                compression_algorithm = setCompressionAlgorithm(comp)
+                print('Compression images with the following algorithm: '+ compression_algorithm.split('_')[1].upper())
             for i in range(len(fnames)):
                 if i % 10 == 0:
                     start_time = time.time()
                 outfile = fnames[i].split('.')[0]+'.'+fm
-                res = translate_nodata(inputfolder+'/'+fnames[i], output, outfile, fm, tfw)
+                res = translate_nodata(inputfolder+'/'+fnames[i], output, outfile, fm, tfw, compression)
                 show_progress(length=len(fnames), index=i, res=res)
                 if i % 10 == 0:
                     timings.append(time.time() - start_time)
@@ -355,11 +381,19 @@ def do_translate(inputfolder, program, fm, args):
             dimensions = program.split('rpx=')[1]
             width = int(dimensions.split(',')[0])
             height = int(dimensions.split(',')[1])
+            compression = input('Which compression type do you wish to use? \n1 = Keeps compressed file if size is smaller than original (Recommended/Default)\n2 = Compresses all files\n3 = No compression (keeps raw images)\n')
+            compression = setCompressionType(compression)
+            print("You've selected option "+str(compression))
+            # Compression algorithm option
+            if str(compression) == '1' or str(compression) == '2':
+                comp = input('which compression algorithm would you like to use?\n1 = JPEG (Default)\n2 = LZW\n')
+                compression_algorithm = setCompressionAlgorithm(comp)
+                print('Compression images with the following algorithm: '+ compression_algorithm.split('_')[1].upper())
             for i in range(len(fnames)):
                 if i % 10 == 0:
                     start_time = time.time()
                 outfile = fnames[i].split('.')[0]+'.'+fm
-                res = translate_size_px(inputfolder+'/'+fnames[i], output, outfile, width, height, fm, tfw)
+                res = translate_size_px(inputfolder+'/'+fnames[i], output, outfile, width, height, fm, tfw, compression)
                 show_progress(length=len(fnames), index=i, res=res)
                 if i % 10 == 0:
                     timings.append(time.time() - start_time)
@@ -368,11 +402,19 @@ def do_translate(inputfolder, program, fm, args):
             dimensions = program.split('rpc=')[1]
             width = int(dimensions.split(',')[0])
             height = int(dimensions.split(',')[1])
+            compression = input('Which compression type do you wish to use? \n1 = Keeps compressed file if size is smaller than original (Recommended/Default)\n2 = Compresses all files\n3 = No compression (keeps raw images)\n')
+            compression = setCompressionType(compression)
+            print("You've selected option "+str(compression))
+            # Compression algorithm option
+            if str(compression) == '1' or str(compression) == '2':
+                comp = input('which compression algorithm would you like to use?\n1 = JPEG (Default)\n2 = LZW\n')
+                compression_algorithm = setCompressionAlgorithm(comp)
+                print('Compression images with the following algorithm: '+ compression_algorithm.split('_')[1].upper())
             for i in range(len(fnames)):
                 if i % 10 == 0:
                     start_time = time.time()
                 outfile = fnames[i].split('.')[0]+'.'+fm
-                res = translate_size_pct(inputfolder+'/'+fnames[i], output, outfile, width, height, fm, tfw)
+                res = translate_size_pct(inputfolder+'/'+fnames[i], output, outfile, width, height, fm, tfw, compression)
                 show_progress(length=len(fnames), index=i, res=res)
                 if i % 10 == 0:
                     timings.append(time.time() - start_time)
